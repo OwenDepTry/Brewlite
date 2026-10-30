@@ -41,6 +41,11 @@ export function Header() {
           {hydrated &&
             (user ? (
               <>
+                {user.role === 'STAFF' && (
+                  <Link href="/staff" className="rounded-lg px-3 py-2 hover:bg-espresso/5">
+                    Quầy
+                  </Link>
+                )}
                 <Link href="/orders" className="rounded-lg px-3 py-2 hover:bg-espresso/5">
                   Đơn của tôi
                 </Link>

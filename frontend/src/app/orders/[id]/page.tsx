@@ -1,8 +1,9 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useState } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ErrorView, Spinner } from '@/components/StateViews';
 import { api } from '@/lib/api';
@@ -15,6 +16,18 @@ const FINAL_STATUSES = ['COMPLETED', 'CANCELLED'];
 export default function OrderConfirmationPage() {
   const { id } = useParams<{ id: string }>();
   const { ready, token } = useRequireAuth();
+  const queryClient = useQueryClient();
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const cancelMutation = useMutation({
+    mutationFn: () => api<OrderView>(`/orders/${id}/cancel`, { method: 'POST', token }),
+    onSuccess: (updated) => {
+      setCancelError(null);
+      queryClient.setQueryData(['order', id], updated);
+      queryClient.invalidateQueries({ queryKey: ['orders', 'me'] });
+    },
+    onError: (err) => setCancelError((err as Error).message),
+  });
 
   const { data: order, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['order', id],
@@ -67,6 +80,26 @@ export default function OrderConfirmationPage() {
         {order.status === 'PAYMENT_FAILED' && (
           <p className="mt-4 text-red-700">Thanh toán chưa thành công. Bạn có thể quay lại giỏ hàng để thử lại.</p>
         )}
+        {order.pointsEarned > 0 && (
+          <p className="mt-3 inline-block rounded-full bg-brand-50 px-4 py-1 text-sm font-semibold text-brand-700">
+            +{order.pointsEarned} điểm tích lũy
+          </p>
+        )}
+        {(order.status === 'PENDING' || order.status === 'PAYMENT_FAILED') && (
+          <div className="mt-4">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={cancelMutation.isPending}
+              onClick={() => {
+                if (window.confirm(`Hủy đơn ${order.code}?`)) cancelMutation.mutate();
+              }}
+            >
+              {cancelMutation.isPending ? 'Đang hủy…' : 'Hủy đơn'}
+            </button>
+            {cancelError && <p className="mt-2 text-sm text-red-700">{cancelError}</p>}
+          </div>
+        )}
       </section>
 
       <section className="card mt-4 p-5">
@@ -92,7 +125,7 @@ export default function OrderConfirmationPage() {
                 <span>{formatVND(order.subtotal)}</span>
               </div>
               <div className="flex justify-between text-brand-700">
-                <span>Giảm giá</span>
+                <span>Giảm giá{order.promoCode && ` (${order.promoCode})`}</span>
                 <span>−{formatVND(order.discount)}</span>
               </div>
             </>

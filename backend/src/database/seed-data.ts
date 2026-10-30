@@ -23,3 +23,40 @@ export const SEED_USERS = [
   { email: 'demo@brewlite.vn', password: 'demo1234', fullName: 'Khách Demo', role: 'CUSTOMER' as const },
   { email: 'barista@brewlite.vn', password: 'barista123', fullName: 'Barista BrewLite', role: 'STAFF' as const },
 ];
+
+/** Mã khuyến mãi mẫu (SUMMER25 đã hết hạn – dùng để demo trường hợp bị từ chối) */
+export const SEED_PROMOTIONS = [
+  {
+    code: 'WELCOME10',
+    description: 'Giảm 10% cho đơn từ 50.000đ, tối đa 20.000đ',
+    percentOff: 10,
+    maxDiscount: 20000,
+    minOrderTotal: 50000,
+    startsAt: new Date('2026-01-01T00:00:00+07:00'),
+    endsAt: new Date('2027-12-31T23:59:59+07:00'),
+    active: true,
+    usageLimit: null,
+  },
+  {
+    code: 'BREW20',
+    description: 'Giảm 20% cho đơn từ 100.000đ, tối đa 30.000đ (giới hạn 100 lượt)',
+    percentOff: 20,
+    maxDiscount: 30000,
+    minOrderTotal: 100000,
+    startsAt: new Date('2026-01-01T00:00:00+07:00'),
+    endsAt: new Date('2027-12-31T23:59:59+07:00'),
+    active: true,
+    usageLimit: 100,
+  },
+  {
+    code: 'SUMMER25',
+    description: 'Ưu đãi hè 2025 (đã hết hạn)',
+    percentOff: 25,
+    maxDiscount: null,
+    minOrderTotal: 0,
+    startsAt: new Date('2025-06-01T00:00:00+07:00'),
+    endsAt: new Date('2025-08-31T23:59:59+07:00'),
+    active: true,
+    usageLimit: null,
+  },
+];

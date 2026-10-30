@@ -7,7 +7,7 @@ import { EmptyView, Spinner } from '@/components/StateViews';
 import { ApiError, api } from '@/lib/api';
 import { formatVND } from '@/lib/format';
 import { newIdempotencyKey } from '@/lib/id';
-import type { OrderView, PaymentMethod, PaymentResult } from '@/lib/types';
+import type { OrderView, PaymentMethod, PaymentResult, QuoteView } from '@/lib/types';
 import { useHydrated } from '@/lib/useHydrated';
 import { useAuth } from '@/store/auth';
 import { cartTotal, useCart } from '@/store/cart';
@@ -28,6 +28,10 @@ export default function CheckoutPage() {
   const [order, setOrder] = useState<OrderView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [promoInput, setPromoInput] = useState('');
+  const [quote, setQuote] = useState<QuoteView | null>(null);
+  const [promoMessage, setPromoMessage] = useState<string | null>(null);
+  const [checkingPromo, setCheckingPromo] = useState(false);
 
   // Mỗi lần vào trang thanh toán: 1 khóa cho việc tạo đơn; mỗi lần bấm trả tiền: 1 khóa thanh toán.
   // Nếu mạng lỗi giữa chừng, bấm lại sẽ gửi lại đúng khóa cũ nên server không tạo đơn/trừ tiền 2 lần.
@@ -50,7 +54,46 @@ export default function CheckoutPage() {
     );
   }
 
-  const total = order?.total ?? cartTotal(items);
+  const cartItemsPayload = items.map((i) => ({
+    productId: i.productId,
+    size: i.size,
+    toppingIds: i.toppings.map((t) => t.id),
+    qty: i.qty,
+  }));
+
+  const subtotal = order?.subtotal ?? quote?.subtotal ?? cartTotal(items);
+  const discount = order?.discount ?? (quote?.promoCode ? quote.discount : 0);
+  const total = order?.total ?? subtotal - discount;
+
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    setPromoMessage(null);
+    if (!code) {
+      setQuote(null);
+      return;
+    }
+    setCheckingPromo(true);
+    try {
+      const q = await api<QuoteView>('/orders/quote', {
+        method: 'POST',
+        token,
+        body: { items: cartItemsPayload, promoCode: code },
+      });
+      setQuote(q);
+      setPromoMessage(q.promoError ?? `Đã áp dụng mã ${q.promoCode}: giảm ${formatVND(q.discount)}`);
+    } catch (err) {
+      setQuote(null);
+      setPromoMessage((err as Error).message);
+    } finally {
+      setCheckingPromo(false);
+    }
+  };
+
+  const removePromo = () => {
+    setQuote(null);
+    setPromoInput('');
+    setPromoMessage(null);
+  };
 
   const handlePay = async () => {
     setError(null);
@@ -64,12 +107,8 @@ export default function CheckoutPage() {
           token,
           headers: { 'Idempotency-Key': orderKey.current },
           body: {
-            items: items.map((i) => ({
-              productId: i.productId,
-              size: i.size,
-              toppingIds: i.toppings.map((t) => t.id),
-              qty: i.qty,
-            })),
+            items: cartItemsPayload,
+            ...(quote?.promoCode ? { promoCode: quote.promoCode } : {}),
           },
         });
         setOrder(current);
@@ -133,11 +172,55 @@ export default function CheckoutPage() {
             );
           })}
         </ul>
-        <div className="mt-3 flex justify-between border-t border-espresso/10 pt-3 text-lg font-bold">
-          <span>Tổng</span>
-          <span>{formatVND(total)}</span>
+        <div className="mt-3 space-y-1 border-t border-espresso/10 pt-3">
+          {discount > 0 && (
+            <>
+              <div className="flex justify-between text-sm">
+                <span>Tạm tính</span>
+                <span>{formatVND(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-brand-700">
+                <span>Giảm giá ({order?.promoCode ?? quote?.promoCode})</span>
+                <span>−{formatVND(discount)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex justify-between text-lg font-bold">
+            <span>Tổng</span>
+            <span>{formatVND(total)}</span>
+          </div>
         </div>
       </section>
+
+      {!order && (
+        <section className="card mt-4 p-5">
+          <h2 className="mb-3 font-semibold">Mã giảm giá</h2>
+          <div className="flex gap-2">
+            <input
+              className="input uppercase"
+              placeholder="VD: WELCOME10"
+              value={promoInput}
+              onChange={(e) => setPromoInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
+              disabled={!!quote?.promoCode}
+              aria-label="Mã giảm giá"
+            />
+            {quote?.promoCode ? (
+              <button type="button" className="btn-secondary" onClick={removePromo}>
+                Bỏ mã
+              </button>
+            ) : (
+              <button type="button" className="btn-secondary" onClick={applyPromo} disabled={checkingPromo}>
+                {checkingPromo ? '…' : 'Áp dụng'}
+              </button>
+            )}
+          </div>
+          {promoMessage && (
+            <p className={`mt-2 text-sm ${quote?.promoCode ? 'text-brand-700' : 'text-red-700'}`}>{promoMessage}</p>
+          )}
+          <p className="mt-2 text-xs text-espresso/60">Mỗi 10.000đ thanh toán được cộng 1 điểm tích lũy.</p>
+        </section>
+      )}
 
       <section className="card mt-4 p-5">
         <h2 className="mb-3 font-semibold">Phương thức</h2>

@@ -9,6 +9,8 @@ export function toOrderView(order: Order) {
     subtotal: order.subtotal,
     discount: order.discount,
     total: order.total,
+    promoCode: order.promoCode,
+    pointsEarned: order.pointsEarned,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     items: (order.items ?? []).map((i) => ({

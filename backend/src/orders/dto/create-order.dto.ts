@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -7,10 +7,13 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsString,
+  Matches,
   Max,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { ORDER_STATUSES, type OrderStatus } from '../../domain/order-status';
 import { SIZES, type Size } from '../../domain/pricing';
 
 export class CreateOrderItemDto {
@@ -41,4 +44,16 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
+
+  /** Mã giảm giá (không phân biệt hoa thường) */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() || undefined : value))
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,30}$/, { message: 'Mã giảm giá không hợp lệ' })
+  promoCode?: string;
+}
+
+export class UpdateOrderStatusDto {
+  @IsIn(ORDER_STATUSES as unknown as string[], { message: 'Trạng thái không hợp lệ' })
+  status!: OrderStatus;
 }

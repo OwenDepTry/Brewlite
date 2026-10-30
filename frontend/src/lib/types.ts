@@ -50,9 +50,19 @@ export interface OrderView {
   subtotal: number;
   discount: number;
   total: number;
+  promoCode: string | null;
+  pointsEarned: number;
   createdAt: string;
   updatedAt: string;
   items: OrderItemView[];
+}
+
+export interface QuoteView {
+  subtotal: number;
+  discount: number;
+  total: number;
+  promoCode: string | null;
+  promoError: string | null;
 }
 
 export type PaymentMethod = 'WALLET' | 'CARD';
@@ -71,4 +81,5 @@ export interface PaymentView {
 export interface PaymentResult {
   payment: PaymentView;
   order: OrderView;
+  replayed: boolean;
 }
