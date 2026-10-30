@@ -34,6 +34,17 @@ export class OrdersService {
     return toOrderView(saved);
   }
 
+  /** Lịch sử đơn của khách, mới nhất trước */
+  async findMine(userId: string) {
+    const rows = await this.orders.find({
+      where: { userId },
+      relations: { items: true },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: 50,
+    });
+    return rows.map(toOrderView);
+  }
+
   async findOne(id: number) {
     const order = await this.orders.findOne({ where: { id }, relations: { items: true } });
     if (!order) throw new NotFoundException(`Không tìm thấy đơn #${id}`);

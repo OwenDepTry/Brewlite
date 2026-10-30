@@ -27,6 +27,12 @@ export class OrdersController {
     return this.ordersService.create(dto, user.id);
   }
 
+  /** GET /orders/me – lịch sử đơn của user đang đăng nhập (khai báo trước :id) */
+  @Get('me')
+  findMine(@CurrentUser() user: AuthUser) {
+    return this.ordersService.findMine(user.id);
+  }
+
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
     const order = await this.ordersService.findOne(id);

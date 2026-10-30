@@ -41,6 +41,9 @@ export function Header() {
           {hydrated &&
             (user ? (
               <>
+                <Link href="/orders" className="rounded-lg px-3 py-2 hover:bg-espresso/5">
+                  Đơn của tôi
+                </Link>
                 <span className="hidden px-2 text-espresso/70 sm:inline">Xin chào, {user.fullName || user.email}</span>
                 <button type="button" onClick={handleLogout} className="rounded-lg px-3 py-2 hover:bg-espresso/5">
                   Đăng xuất
