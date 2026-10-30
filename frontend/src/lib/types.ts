@@ -23,3 +23,52 @@ export interface ProductDetail extends Product {
     toppings: ToppingOption[];
   };
 }
+
+export type OrderStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'PAYMENT_FAILED'
+  | 'PREPARING'
+  | 'READY'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface OrderItemView {
+  productId: number;
+  productName: string;
+  size: Size;
+  toppings: ToppingOption[];
+  unitPrice: number;
+  qty: number;
+  lineTotal: number;
+}
+
+export interface OrderView {
+  id: number;
+  code: string;
+  status: OrderStatus;
+  subtotal: number;
+  discount: number;
+  total: number;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItemView[];
+}
+
+export type PaymentMethod = 'WALLET' | 'CARD';
+
+export interface PaymentView {
+  id: string;
+  orderId: number;
+  amount: number;
+  method: PaymentMethod;
+  status: 'SUCCESS' | 'FAILED';
+  failureReason: string | null;
+  transactionRef: string | null;
+  createdAt: string;
+}
+
+export interface PaymentResult {
+  payment: PaymentView;
+  order: OrderView;
+}
