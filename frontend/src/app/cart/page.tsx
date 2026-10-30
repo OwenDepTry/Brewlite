@@ -7,14 +7,19 @@ import { EmptyView, Spinner } from '@/components/StateViews';
 import { imageSrc } from '@/lib/api';
 import { formatVND } from '@/lib/format';
 import { useHydrated } from '@/lib/useHydrated';
+import { useAuth } from '@/store/auth';
 import { MAX_QTY_PER_LINE, cartCount, cartTotal, useCart } from '@/store/cart';
 
 export default function CartPage() {
   const hydrated = useHydrated();
   const router = useRouter();
   const { items, setQty, removeItem } = useCart();
+  const token = useAuth((s) => s.token);
 
   if (!hydrated) return <Spinner />;
+
+  // Chưa đăng nhập thì đi qua trang đăng nhập rồi quay lại thanh toán
+  const goCheckout = () => router.push(token ? '/checkout' : '/login?next=/checkout');
 
   if (items.length === 0) {
     return (
@@ -74,7 +79,7 @@ export default function CartPage() {
           <Link href="/" className="btn-secondary flex-1">
             Mua thêm
           </Link>
-          <button type="button" onClick={() => router.push('/checkout')} className="btn-primary flex-1">
+          <button type="button" onClick={goCheckout} className="btn-primary flex-1">
             Thanh toán · {formatVND(total)}
           </button>
         </div>

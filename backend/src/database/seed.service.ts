@@ -1,10 +1,13 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { DataSource } from 'typeorm';
+import { BCRYPT_ROUNDS } from '../auth/auth.service';
 import { Product } from '../products/product.entity';
 import { Topping } from '../products/topping.entity';
-import { SEED_PRODUCTS, SEED_TOPPINGS } from './seed-data';
+import { User } from '../users/user.entity';
+import { SEED_PRODUCTS, SEED_TOPPINGS, SEED_USERS } from './seed-data';
 
-/** Nạp dữ liệu mẫu khi CSDL còn trống (chỉ chạy khi SEED_ON_START khác "false"). */
+/** Nạp dữ liệu mẫu khi CSDL còn trống (bỏ qua khi SEED_ON_START=false). */
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SeedService.name);
@@ -27,6 +30,15 @@ export class SeedService implements OnApplicationBootstrap {
     if ((await toppingRepo.count()) === 0) {
       await toppingRepo.save(SEED_TOPPINGS.map((t) => toppingRepo.create(t)));
       this.logger.log(`Đã tạo ${SEED_TOPPINGS.length} topping mẫu`);
+    }
+
+    const userRepo = this.dataSource.getRepository(User);
+    if ((await userRepo.count()) === 0) {
+      for (const u of SEED_USERS) {
+        const passwordHash = await bcrypt.hash(u.password, BCRYPT_ROUNDS);
+        await userRepo.save(userRepo.create({ email: u.email, fullName: u.fullName, role: u.role, passwordHash }));
+      }
+      this.logger.log(`Đã tạo ${SEED_USERS.length} tài khoản demo`);
     }
   }
 }

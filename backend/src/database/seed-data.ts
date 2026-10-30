@@ -17,3 +17,9 @@ export const SEED_TOPPINGS = [
   { name: 'Kem cheese', price: 10000 },
   { name: 'Thêm shot espresso', price: 10000 },
 ];
+
+/** Tài khoản demo (mật khẩu được băm bcrypt khi seed) */
+export const SEED_USERS = [
+  { email: 'demo@brewlite.vn', password: 'demo1234', fullName: 'Khách Demo', role: 'CUSTOMER' as const },
+  { email: 'barista@brewlite.vn', password: 'barista123', fullName: 'Barista BrewLite', role: 'STAFF' as const },
+];
