@@ -2,12 +2,14 @@
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import type { UserRole } from '@/lib/types';
 
 export interface SessionUser {
   id: string;
   email: string;
   fullName: string;
-  role: 'CUSTOMER' | 'STAFF';
+  role: UserRole;
+  isActive?: boolean;
   loyaltyPoints: number;
 }
 
@@ -29,8 +31,8 @@ export const useAuth = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
-      setSession: (res) => set({ token: res.accessToken, user: res.user }),
-      setUser: (user) => set({ user }),
+      setSession: (res: AuthResponse) => set({ token: res.accessToken, user: res.user }),
+      setUser: (user: SessionUser) => set({ user }),
       logout: () => set({ token: null, user: null }),
     }),
     { name: 'brewlite-auth', storage: createJSONStorage(() => localStorage) },
