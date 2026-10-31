@@ -16,7 +16,7 @@ import { evaluatePromotion, normalizePromoCode } from '../domain/promotion';
 import { Product } from '../products/product.entity';
 import { Topping } from '../products/topping.entity';
 import { Promotion } from '../promotions/promotion.entity';
-import { User } from '../users/user.entity';
+import { User, isStaffRole } from '../users/user.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderItem } from './order-item.entity';
 import { ensureTransition } from './order-transition';
@@ -164,7 +164,7 @@ export class OrdersService {
 
   /**
    * Chuyển trạng thái đơn theo máy trạng thái.
-   * - STAFF: mọi chuyển tiếp hợp lệ (PAID→PREPARING→READY→COMPLETED, hủy).
+   * - STAFF / MANAGER: mọi chuyển tiếp hợp lệ (PAID→PREPARING→READY→COMPLETED, hủy).
    * - Khách: chỉ được hủy đơn của mình khi chưa thanh toán (PENDING / PAYMENT_FAILED).
    * Hủy đơn sẽ hoàn lại tồn kho, lượt dùng mã giảm giá và điểm đã cộng.
    */
@@ -174,7 +174,7 @@ export class OrdersService {
       const order = await m.findOne(Order, { where: { id: orderId }, lock: { mode: 'pessimistic_write' } });
       if (!order) throw new NotFoundException(`Không tìm thấy đơn #${orderId}`);
 
-      if (actor.role !== 'STAFF') {
+      if (!isStaffRole(actor.role)) {
         if (order.userId !== actor.id) throw new ForbiddenException('Bạn không có quyền với đơn này');
         if (to !== 'CANCELLED') throw new ForbiddenException('Chỉ nhân viên quầy được cập nhật trạng thái pha chế');
         if (order.status === 'PAID') {

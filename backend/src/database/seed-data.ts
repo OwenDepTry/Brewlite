@@ -22,6 +22,7 @@ export const SEED_TOPPINGS = [
 export const SEED_USERS = [
   { email: 'demo@brewlite.vn', password: 'demo1234', fullName: 'Khách Demo', role: 'CUSTOMER' as const },
   { email: 'barista@brewlite.vn', password: 'barista123', fullName: 'Barista BrewLite', role: 'STAFF' as const },
+  { email: 'manager@brewlite.vn', password: 'manager123', fullName: 'Quản lý BrewLite', role: 'MANAGER' as const },
 ];
 
 /** Mã khuyến mãi mẫu (SUMMER25 đã hết hạn – dùng để demo trường hợp bị từ chối) */
