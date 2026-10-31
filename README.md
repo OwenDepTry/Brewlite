@@ -20,11 +20,15 @@ brewlite/
 │   │   ├── products/   menu, topping
 │   │   ├── orders/     tạo đơn, lịch sử đơn
 │   │   ├── payments/   thanh toán + cổng giả lập
+│   │   ├── admin/      API quản lý (doanh thu, menu, khuyến mãi, tài khoản)
 │   │   ├── domain/     quy tắc nghiệp vụ thuần (giá, trạng thái đơn…)
 │   │   └── database/   cấu hình TypeORM, dữ liệu mẫu
 │   └── test/           test tích hợp (cần PostgreSQL)
 ├── frontend/           Next.js        (http://localhost:3000)
-│   └── src/app/        /, /products/[id], /cart, /checkout, /orders, /orders/[id], /login, /register
+│   └── src/app/
+│       ├── (shop)/     khách: /, /products/[id], /cart, /checkout, /orders, /orders/[id], /account, /login, /register
+│       ├── staff/      nhân viên quầy: /staff
+│       └── admin/      quản lý: /admin, /admin/orders, /admin/menu, /admin/promotions, /admin/accounts
 └── docker-compose.yml  db + backend + frontend
 ```
 
@@ -41,10 +45,29 @@ docker compose up --build
 - API: **http://localhost:4000** (GET `/` trả “Hello BrewLite”).
 - Lần đầu chạy, backend tự tạo bảng và nạp dữ liệu mẫu (8 đồ uống, 4 topping, 2 tài khoản).
 
-| Tài khoản demo | Mật khẩu | Vai trò |
-| --- | --- | --- |
-| `demo@brewlite.vn` | `demo1234` | Khách hàng |
-| `barista@brewlite.vn` | `barista123` | Nhân viên quầy (STAFF) |
+| Tài khoản demo | Mật khẩu | Vai trò | Vào được |
+| --- | --- | --- | --- |
+| `demo@brewlite.vn` | `demo1234` | Khách hàng (CUSTOMER) | đặt món, thanh toán, vé lấy nước, tài khoản |
+| `barista@brewlite.vn` | `barista123` | Nhân viên quầy (STAFF) | `/staff` – màn hình quầy pha chế |
+| `manager@brewlite.vn` | `manager123` | Quản lý (MANAGER) | `/admin` – tổng quan, đơn hàng, menu, khuyến mãi, tài khoản (và `/staff`) |
+
+Trang đăng nhập có sẵn 3 nút đăng nhập nhanh bằng tài khoản demo.
+
+## 👥 Phân quyền
+
+| | Khách hàng | Nhân viên quầy | Quản lý |
+| --- | :-: | :-: | :-: |
+| Tự đăng ký | ✓ | – (quản lý tạo) | – (quản lý tạo) |
+| Đặt món, thanh toán, xem đơn của mình | ✓ | ✓ | ✓ |
+| Màn hình quầy: chuyển trạng thái pha chế, hủy đơn đã trả | – | ✓ | ✓ |
+| Doanh thu, danh sách mọi đơn | – | – | ✓ |
+| Thêm/sửa/ẩn món, topping, nhập kho | – | – | ✓ |
+| Tạo/tắt mã khuyến mãi | – | – | ✓ |
+| Tạo tài khoản nhân viên, đổi vai trò, khóa tài khoản, đặt lại mật khẩu | – | – | ✓ |
+
+- Quyền được kiểm tra ở **backend** (`RolesGuard`); frontend chỉ điều hướng.
+- JWT đọc lại tài khoản từ CSDL ở mỗi request nên **khóa tài khoản hoặc đổi vai trò có hiệu lực ngay**, token cũ bị từ chối.
+- Quản lý không thể tự khóa hay tự hạ quyền mình (tránh cửa hàng mất tài khoản quản lý).
 
 Xóa sạch dữ liệu để chạy lại từ đầu: `docker compose down -v`.
 
@@ -78,14 +101,23 @@ npm run dev                   # http://localhost:3000
 | `POST /auth/register` | Đăng ký, trả JWT | – |
 | `POST /auth/login` | Đăng nhập, trả JWT | – |
 | `GET /auth/me` | Thông tin tài khoản, điểm tích lũy | JWT |
+| `PATCH /auth/me` | Đổi họ tên | JWT |
+| `POST /auth/change-password` | Đổi mật khẩu | JWT |
 | `POST /orders` | Tạo đơn (PENDING), giữ tồn kho; header `Idempotency-Key` tùy chọn | JWT |
 | `POST /orders/quote` | Xem trước tổng tiền + mã giảm giá | JWT |
 | `GET /orders/me` | Lịch sử đơn của user | JWT |
 | `GET /orders/:id` | Chi tiết/xác nhận đơn | JWT |
 | `POST /orders/:id/cancel` | Khách hủy đơn chưa thanh toán | JWT |
 | `POST /payments` | Thanh toán (idempotent, **bắt buộc** header `Idempotency-Key`) | JWT |
-| `GET /orders/active` | Đơn cần pha chế | JWT (STAFF) |
-| `PATCH /orders/:id/status` | Chuyển trạng thái theo máy trạng thái | JWT (STAFF) |
+| `GET /orders/active` | Đơn cần pha chế | JWT (STAFF, MANAGER) |
+| `PATCH /orders/:id/status` | Chuyển trạng thái theo máy trạng thái | JWT (STAFF, MANAGER) |
+| `GET /admin/stats?days=7\|14\|30` | Doanh thu hôm nay, theo ngày, món bán chạy, sắp hết hàng | JWT (MANAGER) |
+| `GET /admin/orders?status=&q=&page=` | Mọi đơn, lọc theo trạng thái / mã đơn / email | JWT (MANAGER) |
+| `GET/POST /admin/products`, `PATCH /admin/products/:id` | Quản lý đồ uống (ẩn/hiện) | JWT (MANAGER) |
+| `POST /admin/products/:id/stock` | Nhập thêm / trừ tồn kho (`{ "delta": 20 }`) | JWT (MANAGER) |
+| `GET/POST /admin/toppings`, `PATCH /admin/toppings/:id` | Quản lý topping | JWT (MANAGER) |
+| `GET/POST /admin/promotions`, `PATCH /admin/promotions/:code` | Quản lý mã giảm giá | JWT (MANAGER) |
+| `GET/POST /admin/users`, `PATCH /admin/users/:id` | Tạo nhân viên, đổi vai trò, khóa, đặt lại mật khẩu | JWT (MANAGER) |
 
 Gửi JWT qua header `Authorization: Bearer <accessToken>`.
 
@@ -111,7 +143,8 @@ curl -s localhost:4000/payments -H "Authorization: Bearer $TOKEN" -H 'Content-Ty
 5. Thử lỗi: tick **“Mô phỏng thanh toán lỗi”** → đơn chuyển `PAYMENT_FAILED`, giỏ hàng giữ nguyên, bỏ tick và bấm lại để thanh toán thành công.
 6. Nhập mã **WELCOME10** (giảm 10% cho đơn từ 50.000đ) ở trang thanh toán; thử **SUMMER25** để thấy mã hết hạn bị từ chối.
 7. **Đơn của tôi** để xem lịch sử và điểm tích lũy.
-8. Đăng nhập **barista@brewlite.vn** → mục **Quầy** để chuyển đơn `PAID → PREPARING → READY → COMPLETED`; màn hình xác nhận của khách tự cập nhật.
+8. Đăng nhập **barista@brewlite.vn** → màn hình **Quầy pha chế** để chuyển đơn `PAID → PREPARING → READY → COMPLETED`; vé lấy nước của khách tự cập nhật (chuyển vàng khi sẵn sàng).
+9. Đăng nhập **manager@brewlite.vn** → **Tổng quan** xem doanh thu; **Menu & tồn kho** thêm món, nhập kho; **Khuyến mãi** tạo mã; **Tài khoản** tạo nhân viên mới hoặc khóa tài khoản.
 
 ## ⚙️ Task 10 – Nghiệp vụ backend
 

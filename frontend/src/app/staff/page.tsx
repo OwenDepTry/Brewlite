@@ -1,103 +1,108 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { StatusBadge } from '@/components/StatusBadge';
-import { EmptyView, ErrorView, Spinner } from '@/components/StateViews';
+import { PageHeader } from '@/components/admin/WorkShell';
+import { ErrorView, Spinner } from '@/components/StateViews';
 import { api } from '@/lib/api';
-import { formatDateTime } from '@/lib/format';
 import type { OrderStatus, OrderView } from '@/lib/types';
-import { useRequireAuth } from '@/lib/useRequireAuth';
 import { useAuth } from '@/store/auth';
+import { toast } from '@/store/toast';
 
-/** Bước tiếp theo barista được phép bấm, khớp với máy trạng thái ở backend */
-const NEXT_STEP: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
-  PAID: { to: 'PREPARING', label: 'Nhận đơn & pha chế' },
-  PREPARING: { to: 'READY', label: 'Pha xong' },
-  READY: { to: 'COMPLETED', label: 'Đã giao khách' },
+/** Bước tiếp theo barista được bấm – khớp máy trạng thái ở backend */
+const NEXT_STEP: Partial<Record<OrderStatus, { to: OrderStatus; label: string; done: string }>> = {
+  PAID: { to: 'PREPARING', label: 'Bắt đầu pha', done: 'đang pha' },
+  PREPARING: { to: 'READY', label: 'Pha xong, gọi khách', done: 'đã sẵn sàng' },
+  READY: { to: 'COMPLETED', label: 'Khách đã nhận', done: 'đã giao' },
 };
 
-/** Màn hình quầy cho barista (phần mở rộng ngoài MVP) */
-export default function StaffBoardPage() {
-  const { ready, token } = useRequireAuth();
-  const role = useAuth((s) => s.user?.role);
-  const queryClient = useQueryClient();
-  const [actionError, setActionError] = useState<string | null>(null);
+const COLUMNS: { status: OrderStatus; title: string; empty: string }[] = [
+  { status: 'PAID', title: 'Chờ pha', empty: 'Chưa có đơn mới' },
+  { status: 'PREPARING', title: 'Đang pha', empty: 'Không có ly nào đang pha' },
+  { status: 'READY', title: 'Chờ khách lấy', empty: 'Không có ly nào chờ lấy' },
+];
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+function minutesAgo(iso: string): string {
+  const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return 'vừa đặt';
+  if (m < 60) return `${m} phút trước`;
+  return `${Math.floor(m / 60)} giờ ${m % 60} phút trước`;
+}
+
+export default function StaffBoardPage() {
+  const token = useAuth((s) => s.token);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, isError, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['orders', 'active'],
     queryFn: () => api<OrderView[]>('/orders/active', { token }),
-    enabled: ready && role === 'STAFF',
     refetchInterval: 5000,
   });
 
   const mutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: OrderStatus }) =>
       api<OrderView>(`/orders/${id}/status`, { method: 'PATCH', token, body: { status } }),
-    onSuccess: () => {
-      setActionError(null);
+    onSuccess: (order: OrderView) => {
       queryClient.invalidateQueries({ queryKey: ['orders', 'active'] });
+      toast(order.status === 'CANCELLED' ? `Đã hủy đơn ${order.code}` : `Đơn ${order.code} ${NEXT_STEP[prevOf(order.status)]?.done ?? 'đã cập nhật'}`);
     },
-    onError: (err) => setActionError((err as Error).message),
+    onError: (err) => toast((err as Error).message, 'error'),
   });
 
-  if (!ready) return <Spinner />;
-  if (role !== 'STAFF') {
-    return <EmptyView title="Trang dành cho nhân viên quầy">Đăng nhập bằng tài khoản barista để sử dụng.</EmptyView>;
-  }
   if (isLoading) return <Spinner />;
   if (isError) return <ErrorView message={(error as Error).message} onRetry={() => refetch()} />;
 
-  const columns: { status: OrderStatus; title: string }[] = [
-    { status: 'PAID', title: 'Chờ pha' },
-    { status: 'PREPARING', title: 'Đang pha' },
-    { status: 'READY', title: 'Chờ khách lấy' },
-  ];
+  const total = data?.length ?? 0;
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-bold">Quầy pha chế</h1>
-      <p className="mb-4 text-sm text-espresso/60">Tự cập nhật mỗi 5 giây.</p>
-      {actionError && (
-        <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-          {actionError}
-        </p>
-      )}
+      <PageHeader
+        title="Quầy pha chế"
+        description={
+          total === 0
+            ? 'Chưa có đơn cần xử lý. Màn hình tự cập nhật mỗi 5 giây.'
+            : `${total} đơn đang mở, cập nhật lúc ${new Date(dataUpdatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+        }
+      />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {columns.map((col) => {
+      <div className="grid gap-5 xl:grid-cols-3">
+        {COLUMNS.map((col) => {
           const orders = (data ?? []).filter((o) => o.status === col.status);
           return (
-            <section key={col.status} className="rounded-2xl bg-white/60 p-3">
-              <h2 className="mb-3 font-semibold">
-                {col.title} <span className="text-espresso/50">({orders.length})</span>
+            <section key={col.status} aria-label={col.title} className="rounded-3xl bg-ink/[0.04] p-3">
+              <h2 className="flex items-baseline justify-between px-2 pb-3 pt-1 text-base font-bold">
+                {col.title}
+                <span className="font-display text-2xl tabular text-ink-soft">{orders.length}</span>
               </h2>
               <div className="space-y-3">
-                {orders.length === 0 && <p className="text-sm text-espresso/50">Không có đơn</p>}
+                {orders.length === 0 && <p className="px-2 pb-4 text-sm text-ink-mute">{col.empty}</p>}
                 {orders.map((o) => {
                   const next = NEXT_STEP[o.status];
+                  const ready = o.status === 'READY';
                   return (
-                    <article key={o.id} className="card p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold">{o.code}</span>
-                        <StatusBadge status={o.status} />
+                    <article key={o.id} className={`ticket overflow-hidden ${ready ? 'bg-milk-400' : ''}`}>
+                      <div className="flex items-start justify-between gap-3 px-4 pt-4">
+                        <span className="font-display text-5xl font-extrabold leading-none tracking-[-0.04em] tabular">{o.code}</span>
+                        <span className={`pt-1 text-right text-xs ${ready ? 'text-ink' : 'text-ink-mute'}`}>{minutesAgo(o.createdAt)}</span>
                       </div>
-                      <ul className="mt-2 text-sm">
+                      <ul className="space-y-1 px-4 py-3 text-sm">
                         {o.items.map((i, idx) => (
                           <li key={idx}>
-                            {i.qty} × {i.productName} ({i.size})
+                            <span className="font-bold tabular">{i.qty}×</span> {i.productName}{' '}
+                            <span className="font-semibold">{i.size}</span>
                             {i.toppings.length > 0 && (
-                              <span className="text-espresso/60"> + {i.toppings.map((t) => t.name).join(', ')}</span>
+                              <span className={ready ? 'text-ink/70' : 'text-ink-soft'}>
+                                {' '}
+                                + {i.toppings.map((t) => t.name.toLowerCase()).join(', ')}
+                              </span>
                             )}
                           </li>
                         ))}
                       </ul>
-                      <p className="mt-1 text-xs text-espresso/50">{formatDateTime(o.createdAt)}</p>
-                      <div className="mt-3 flex gap-2">
+                      <div className={`flex gap-2 border-t px-4 py-3 ${ready ? 'border-ink/10' : 'border-line'}`}>
                         {next && (
                           <button
                             type="button"
-                            className="btn-primary flex-1 py-2 text-sm"
+                            className={`${ready ? 'btn-dark' : 'btn-primary'} flex-1`}
                             disabled={mutation.isPending}
                             onClick={() => mutation.mutate({ id: o.id, status: next.to })}
                           >
@@ -107,10 +112,10 @@ export default function StaffBoardPage() {
                         {o.status === 'PAID' && (
                           <button
                             type="button"
-                            className="btn-secondary py-2 text-sm"
+                            className="btn-danger"
                             disabled={mutation.isPending}
                             onClick={() => {
-                              if (window.confirm(`Hủy và hoàn tiền đơn ${o.code}?`)) {
+                              if (window.confirm(`Hủy đơn ${o.code} và hoàn tiền cho khách?`)) {
                                 mutation.mutate({ id: o.id, status: 'CANCELLED' });
                               }
                             }}
@@ -129,4 +134,12 @@ export default function StaffBoardPage() {
       </div>
     </div>
   );
+}
+
+/** Trạng thái trước đó, để chọn câu thông báo phù hợp */
+function prevOf(status: OrderStatus): OrderStatus {
+  if (status === 'PREPARING') return 'PAID';
+  if (status === 'READY') return 'PREPARING';
+  if (status === 'COMPLETED') return 'READY';
+  return status;
 }

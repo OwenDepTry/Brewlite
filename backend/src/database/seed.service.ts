@@ -33,13 +33,13 @@ export class SeedService implements OnApplicationBootstrap {
       this.logger.log(`Đã tạo ${SEED_TOPPINGS.length} topping mẫu`);
     }
 
+    // Tạo từng tài khoản demo nếu chưa có (CSDL cũ cũng nhận thêm tài khoản quản lý)
     const userRepo = this.dataSource.getRepository(User);
-    if ((await userRepo.count()) === 0) {
-      for (const u of SEED_USERS) {
-        const passwordHash = await bcrypt.hash(u.password, BCRYPT_ROUNDS);
-        await userRepo.save(userRepo.create({ email: u.email, fullName: u.fullName, role: u.role, passwordHash }));
-      }
-      this.logger.log(`Đã tạo ${SEED_USERS.length} tài khoản demo`);
+    for (const u of SEED_USERS) {
+      if ((await userRepo.count({ where: { email: u.email } })) > 0) continue;
+      const passwordHash = await bcrypt.hash(u.password, BCRYPT_ROUNDS);
+      await userRepo.save(userRepo.create({ email: u.email, fullName: u.fullName, role: u.role, passwordHash }));
+      this.logger.log(`Đã tạo tài khoản demo ${u.email}`);
     }
 
     const promoRepo = this.dataSource.getRepository(Promotion);

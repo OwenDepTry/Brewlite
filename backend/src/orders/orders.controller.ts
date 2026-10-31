@@ -15,6 +15,7 @@ import {
 import type { Response } from 'express';
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../auth/guards';
 import type { AuthUser } from '../auth/jwt.strategy';
+import { isStaffRole } from '../users/user.entity';
 import { IDEMPOTENCY_HEADER, parseIdempotencyKey } from '../common/idempotency';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
 import { toOrderView } from './order.view';
@@ -56,9 +57,9 @@ export class OrdersController {
     return this.ordersService.findMine(user.id);
   }
 
-  /** GET /orders/active – (STAFF) đơn cần pha chế/giao */
+  /** GET /orders/active – (STAFF, MANAGER) đơn cần pha chế/giao */
   @Get('active')
-  @Roles('STAFF')
+  @Roles('STAFF', 'MANAGER')
   findActive() {
     return this.ordersService.findActive();
   }
@@ -66,15 +67,15 @@ export class OrdersController {
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
     const order = await this.ordersService.findOne(id);
-    if (order.userId !== user.id && user.role !== 'STAFF') {
+    if (order.userId !== user.id && !isStaffRole(user.role)) {
       throw new ForbiddenException('Bạn không có quyền xem đơn này');
     }
     return toOrderView(order);
   }
 
-  /** PATCH /orders/:id/status – (STAFF) chuyển trạng thái theo máy trạng thái; sai luồng => 409 */
+  /** PATCH /orders/:id/status – (STAFF, MANAGER) chuyển trạng thái theo máy trạng thái; sai luồng => 409 */
   @Patch(':id/status')
-  @Roles('STAFF')
+  @Roles('STAFF', 'MANAGER')
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusDto,

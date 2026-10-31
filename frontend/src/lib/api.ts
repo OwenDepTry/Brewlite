@@ -1,3 +1,5 @@
+import { useAuth } from '@/store/auth';
+
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
 export class ApiError extends Error {
@@ -32,13 +34,17 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
       cache: 'no-store',
     });
   } catch {
-    throw new ApiError('Không kết nối được máy chủ. Vui lòng thử lại.', 0);
+    throw new ApiError('Không kết nối được máy chủ. Kiểm tra backend đang chạy rồi thử lại.', 0);
   }
 
   const text = await res.text();
   const data = text ? safeJson(text) : undefined;
 
   if (!res.ok) {
+    // Token hết hạn hoặc tài khoản bị khóa: đăng xuất để người dùng đăng nhập lại
+    if (res.status === 401 && options.token) {
+      useAuth.getState().logout();
+    }
     throw new ApiError(extractMessage(data) ?? `Lỗi ${res.status}`, res.status, data);
   }
   return data as T;
